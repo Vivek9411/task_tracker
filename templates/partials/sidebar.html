@@ -1,0 +1,31 @@
+<div class="col-12 col-xl-3 mb-4 mb-xl-0 px-2 px-md-4 sidebar">
+    <!-- Streak widget -->
+    <div class="glass-panel streak-card text-center">
+        <div class="streak-label">Daily Streak</div>
+        <!-- <div class="streak-flame">🔥</div> -->
+        <div class="streak-number" id="streak-current"><span class="spinner-border text-info spinner-border-sm"
+                role="status" style="width: 2rem; height: 2rem; margin: 10px 0;"></span></div>
+        <div class="streak-record" id="streak-longest"><span class="spinner-border text-info spinner-border-sm"
+                role="status"></span></div>
+
+        <a href="/analytics/" class="glass-button w-100 justify-content-center mt-4 text-decoration-none"
+            style="padding: 10px;">
+            <i data-lucide="bar-chart-2" style="width: 16px; height: 16px;"></i>
+            <span class="ms-2">View Analytics</span>
+        </a>
+    </div>
+
+    <!-- Goals Board widget -->
+    <div class="glass-panel goals-sidebar-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3>My Plans</h3>
+            <button onclick="showCreateGoalForm()"
+                style="background: none; border: none; color: var(--accent-primary); cursor: pointer; display: flex; align-items: center; padding: 4px;">
+                <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
+            </button>
+        </div>
+        <div id="goals-list-container">
+            <!-- Goal Items will be loaded here dynamically -->
+        </div>
+    </div>
+</div>

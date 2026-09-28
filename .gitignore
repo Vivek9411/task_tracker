@@ -1,0 +1,38 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.local
+
+# Database
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+
+# Collected static files (built on deployment)
+staticfiles/
+
+# Logs
+*.log
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Internal notes & plans
+AUTH_CHEATSHEET.md
+AUTH_PLAN.md
+things_to_implement.md
+things_to_learn.md
+tracer.md
+WALKTHROUGH.md

@@ -1,0 +1,254 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Nebula Planner - AI Learning Tracker{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <!-- Lucide Icons via CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+    <!-- Cursor Effects -->
+    <div id="cursor-spotlight"></div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- CSRF Token Injector -->
+    {% csrf_token %}
+    <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+    {% block header %}
+    <!-- HEADER -->
+    <header class="d-flex justify-content-between align-items-center px-3 px-md-4 py-3 shadow-sm border-bottom border-light" style="background: var(--bg-panel, #FCF9F6); z-index: 100;">
+        <div class="d-flex align-items-center gap-2">
+            <a href="/" class="d-flex align-items-center gap-2 text-decoration-none text-dark">
+                <div
+                    style="background: var(--accent-primary); padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="compass" style="color: white; width: 20px; height: 20px;"></i>
+                </div>
+                <span class="logo-text ms-2">Nebula Planner</span>
+            </a>
+        </div>
+        <div>
+            <div id="logged-in-user" class="d-none align-items-center gap-3">
+                <a href="/" class="text-decoration-none text-secondary fw-medium d-none d-md-inline"
+                    style="font-size: 0.9rem;">Dashboard</a>
+                <a href="/analytics/" class="text-decoration-none text-secondary fw-medium d-none d-md-inline"
+                    style="font-size: 0.9rem;">Analytics</a>
+                <span id="user-greeting" class="fw-medium d-none d-lg-inline ms-2">Welcome, Explorer</span>
+                <button class="glass-button" id="btn-2fa-status" onclick="handleToggle2FA()" title="Toggle Two-Factor Authentication" style="padding: 8px 14px; font-size: 0.85rem;">
+                    <i data-lucide="shield" style="width: 16px; height: 16px;"></i> <span id="label-2fa" class="ms-1 d-none d-md-inline">2FA: Off</span>
+                </button>
+                <button class="glass-button" onclick="handleLogout()" style="padding: 8px 16px; font-size: 0.85rem;">
+                    <i data-lucide="log-out" style="width: 16px; height: 16px;"></i> <span class="ms-1">Logout</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    {% endblock %}
+
+    <!-- MAIN BODY -->
+    <main class="{% block main_class %}p-3 p-md-4 p-xl-5{% endblock %}">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+
+    <!-- Global JS Utils -->
+    <script>
+        // Cursor Logic
+        (function () {
+            const spotlight = document.getElementById('cursor-spotlight');
+
+            document.addEventListener('mousemove', function (e) {
+                spotlight.style.left = e.clientX + 'px';
+                spotlight.style.top = e.clientY + 'px';
+            });
+        })();
+
+        // Toast Notification Function
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const iconName = type === 'error' ? 'alert-circle' : 'check-circle';
+            toast.innerHTML = `
+                <i data-lucide="${iconName}" class="toast-icon" style="width: 20px; height: 20px;"></i>
+                <div class="toast-content">${message}</div>
+            `;
+
+            container.appendChild(toast);
+            if (window.lucide) lucide.createIcons();
+
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            // Remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400); // Wait for transition
+            }, 4000);
+        }
+
+        // Helper to read cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Global API Request function
+        async function apiRequest(endpoint, method = 'GET', body = null, throwError = false) {
+            const csrfToken = (document.getElementById('csrf-token') && document.getElementById('csrf-token').value)
+                || getCookie('csrftoken')
+                || (document.querySelector('[name=csrfmiddlewaretoken]') && document.querySelector('[name=csrfmiddlewaretoken]').value)
+                || '';
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            };
+
+            const config = { method, headers };
+            if (body) { config.body = JSON.stringify(body); }
+
+            try {
+                const response = await fetch(`/api/v1/${endpoint}`, config);
+                if (response.status === 403 || response.status === 401) {
+                    if (window.location.pathname !== '/login/' && !endpoint.startsWith('auth/')) {
+                        window.location.href = '/login/';
+                        return null;
+                    }
+                }
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    let errorMessage = data.error || data.message || data.detail;
+                    if (!errorMessage && typeof data === 'object' && Object.keys(data).length > 0) {
+                        // Extract first error from DRF field errors
+                        const firstKey = Object.keys(data)[0];
+                        if (firstKey && Array.isArray(data[firstKey])) {
+                            const prefix = firstKey === 'non_field_errors' ? '' : `${firstKey.replace('_', ' ')}: `;
+                            errorMessage = `${prefix}${data[firstKey][0]}`;
+                        } else {
+                            errorMessage = JSON.stringify(data);
+                        }
+                    }
+                    throw new Error(errorMessage || `Request failed with status ${response.status}`);
+                }
+                return data;
+            } catch (err) {
+                console.error(err);
+                if (throwError) throw err;
+                if (endpoint !== 'auth/user/') { // Don't alert on session check
+                    showToast(err.message, 'error');
+                }
+                return null;
+            }
+        }
+
+        let currentUser = null;
+
+        async function handleToggle2FA() {
+            if (!currentUser) return;
+            const nextState = !currentUser.is_2fa_enabled;
+            const res = await apiRequest('auth/user/2fa/toggle/', 'POST', { enable: nextState });
+            if (res) {
+                currentUser.is_2fa_enabled = res.is_2fa_enabled;
+                update2FAUI();
+                showToast(res.message, 'success');
+            }
+        }
+
+        function update2FAUI() {
+            const label = document.getElementById('label-2fa');
+            const btn = document.getElementById('btn-2fa-status');
+            if (label && currentUser) {
+                label.textContent = currentUser.is_2fa_enabled ? '2FA: On' : '2FA: Off';
+                if (currentUser.is_2fa_enabled) {
+                    btn.style.color = '#0284c7';
+                    btn.style.borderColor = '#0284c7';
+                } else {
+                    btn.style.color = '';
+                    btn.style.borderColor = '';
+                }
+            }
+        }
+
+        async function handleLogout() {
+            await apiRequest('auth/logout/', 'POST');
+            window.location.href = '/login/';
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            // Automatically check user session globally on all pages
+            const user = await apiRequest('auth/user/');
+            if (user) {
+                currentUser = user;
+                const loggedInDiv = document.getElementById('logged-in-user');
+                if (loggedInDiv) {
+                    loggedInDiv.classList.remove('d-none');
+                    loggedInDiv.style.display = 'flex';
+                }
+                const greeting = document.getElementById('user-greeting');
+                if (greeting) {
+                    greeting.textContent = `Hi, ${user.username}`;
+                }
+                update2FAUI();
+                if (typeof initDashboard === 'function') {
+                    initDashboard(user);
+                }
+            } else {
+                const loggedInDiv = document.getElementById('logged-in-user');
+                if (loggedInDiv) {
+                    loggedInDiv.classList.add('d-none');
+                    loggedInDiv.style.display = 'none';
+                }
+                if (window.location.pathname !== '/login/') {
+                    window.location.href = '/login/';
+                }
+            }
+            if (window.lucide) lucide.createIcons();
+        });
+
+    </script>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

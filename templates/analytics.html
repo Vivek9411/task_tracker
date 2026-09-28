@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Analytics - Nebula Planner{% endblock %}
+
+{% block body_class %}dashboard-layout{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/analytics.css' %}">
+{% endblock %}
+
+{% block content %}
+<section id="analytics-section" class="container-fluid px-0 px-xl-4">
+    <div class="row gx-4">
+        {% include 'partials/sidebar.html' %}
+        
+        <div class="col-12 col-xl-9 workspace">
+            <div class="row mb-4">
+                <div class="col-12 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 style="font-family: var(--font-display); font-weight: 700; margin-bottom: 4px;">Your Analytics</h2>
+                        <p class="text-secondary mb-0">Track your consistency and learning volume over time.</p>
+                    </div>
+                    <a href="/" class="glass-button text-decoration-none" style="padding: 8px 16px;">
+                        <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+                        <span class="d-none d-sm-inline ms-1">Go Back</span>
+                    </a>
+                </div>
+            </div>
+
+    <!-- Top Stats Row -->
+    <div class="row g-4 mb-5">
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="glass-panel stat-card h-100">
+                <div class="stat-label">Active Tracks</div>
+                <div class="stat-value" id="stat-active-goals"><span class="spinner-border text-info spinner-border-sm" role="status"></span></div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="glass-panel stat-card h-100">
+                <div class="stat-label">Tasks Completed</div>
+                <div class="stat-value" id="stat-total-completed"><span class="spinner-border text-info spinner-border-sm" role="status"></span></div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="glass-panel stat-card h-100">
+                <div class="stat-label">Current Streak</div>
+                <div class="stat-value" id="stat-current-streak"><span class="spinner-border text-info spinner-border-sm" role="status"></span></div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="glass-panel stat-card h-100">
+                <div class="stat-label">Longest Streak</div>
+                <div class="stat-value" id="stat-longest-streak"><span class="spinner-border text-info spinner-border-sm" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heatmap Row -->
+    <div class="row">
+        <div class="col-12">
+            <div class="glass-panel p-4 p-md-5">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                    <h4 style="font-family: var(--font-display); font-weight: 600; margin: 0;">Activity History</h4>
+                    <select id="year-filter" class="glass-input" style="width: auto; padding: 6px 12px;" onchange="loadAnalytics(this.value)">
+                        <option value="">Past 365 Days</option>
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                </div>
+                
+                <div class="heatmap-container position-relative">
+                    <div id="heatmap-tooltip"></div>
+                    <div id="heatmap-grid" class="heatmap-grid">
+                        <!-- Cells injected via JS -->
+                    </div>
+                    <div class="d-flex align-items-center justify-content-end gap-2 mt-4" style="font-size: 0.75rem; color: var(--text-secondary);">
+                        <span>Less</span>
+                        <div style="display: flex; gap: 4px;">
+                            <div class="heatmap-cell" style="cursor: default;"></div>
+                            <div class="heatmap-cell" data-level="1" style="cursor: default;"></div>
+                            <div class="heatmap-cell" data-level="2" style="cursor: default;"></div>
+                            <div class="heatmap-cell" data-level="3" style="cursor: default;"></div>
+                            <div class="heatmap-cell" data-level="4" style="cursor: default;"></div>
+                        </div>
+                        <span>More</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        loadAnalytics('');
+        loadSidebar();
+    });
+
+    async function loadSidebar() {
+        // Load Streak
+        const streakData = await apiRequest('user/streak/');
+        if (streakData) {
+            document.getElementById('streak-current').textContent = streakData.current_streak;
+            document.getElementById('streak-longest').textContent = `Personal Best: ${streakData.longest_streak} days`;
+        }
+
+        // Load Goals
+        const goalsData = await apiRequest('goals/');
+        const container = document.getElementById('goals-list-container');
+        container.innerHTML = '';
+        if (goalsData && goalsData.length > 0) {
+            goalsData.forEach(goal => {
+                const el = document.createElement('div');
+                el.className = 'goal-item';
+                el.style.cursor = 'pointer';
+                el.onclick = () => window.location.href = '/';
+
+                const labelClass = !goal.is_ai ? 'manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'weekend' : 'all');
+                const labelText = !goal.is_ai ? 'Manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'Weekends' : 'Daily');
+
+                el.innerHTML = `
+                    <div>
+                        <div class="goal-item-title">${goal.title}</div>
+                        <div class="goal-item-meta">${goal.total_days} Lessons • <span class="badge ${labelClass}">${labelText}</span></div>
+                    </div>
+                    <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--accent-primary)"></i>
+                `;
+                container.appendChild(el);
+            });
+            if (window.lucide) lucide.createIcons();
+        } else {
+            container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 20px;">No tracks created yet.</div>';
+        }
+    }
+
+    function showCreateGoalForm() {
+        window.location.href = '/';
+    }
+
+    async function loadAnalytics(year) {
+        const url = year ? `user/analytics/?year=${year}` : 'user/analytics/';
+        const data = await apiRequest(url);
+        if (data) {
+            // Populate stats
+            document.getElementById('stat-active-goals').textContent = data.analytics.active_goals;
+            document.getElementById('stat-total-completed').textContent = data.analytics.total_completed;
+            document.getElementById('stat-current-streak').textContent = data.analytics.current_streak;
+            document.getElementById('stat-longest-streak').textContent = data.analytics.longest_streak;
+
+            // Render Heatmap
+            renderHeatmap(data.heatmap_data, year);
+        }
+    }
+
+    function renderHeatmap(activityData, year) {
+        const container = document.getElementById('heatmap-grid');
+        container.innerHTML = '';
+        const tooltip = document.getElementById('heatmap-tooltip');
+        
+        let startDate, totalDays;
+        if (year) {
+            startDate = new Date(parseInt(year), 0, 1);
+            const isLeap = new Date(parseInt(year), 1, 29).getMonth() === 1;
+            totalDays = isLeap ? 366 : 365;
+        } else {
+            const today = new Date();
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 364);
+            totalDays = 365;
+        }
+
+        // Group dates by month
+        const months = [];
+        let currentMonth = startDate.getMonth();
+        let currentMonthGroup = {
+            monthIndex: currentMonth,
+            year: startDate.getFullYear(),
+            days: []
+        };
+        
+        for (let i = 0; i < totalDays; i++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + i);
+            
+            if (currentDate.getMonth() !== currentMonth) {
+                months.push(currentMonthGroup);
+                currentMonth = currentDate.getMonth();
+                currentMonthGroup = {
+                    monthIndex: currentMonth,
+                    year: currentDate.getFullYear(),
+                    days: []
+                };
+            }
+            currentMonthGroup.days.push(currentDate);
+        }
+        months.push(currentMonthGroup);
+
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        months.forEach(month => {
+            const monthWrapper = document.createElement('div');
+            monthWrapper.style.display = 'flex';
+            monthWrapper.style.flexDirection = 'column';
+            monthWrapper.style.alignItems = 'center'; // Center label under grid
+            monthWrapper.style.gap = '8px';
+
+            const grid = document.createElement('div');
+            grid.style.display = 'grid';
+            grid.style.gridTemplateRows = 'repeat(7, 1fr)';
+            grid.style.gridAutoFlow = 'column';
+            grid.style.gap = '4px';
+
+            // Pad the first day of this month group so rows match Sunday-Saturday
+            const firstDayOfWeek = month.days[0].getDay(); // 0 is Sunday
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.style.visibility = 'hidden';
+                emptyCell.style.width = '14px';
+                emptyCell.style.height = '14px';
+                grid.appendChild(emptyCell);
+            }
+
+            // Fill days
+            month.days.forEach(currentDate => {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                const count = activityData[dateStr] || 0;
+
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                
+                // Set color level
+                if (count === 1) cell.setAttribute('data-level', '1');
+                else if (count === 2 || count === 3) cell.setAttribute('data-level', '2');
+                else if (count === 4 || count === 5) cell.setAttribute('data-level', '3');
+                else if (count > 5) cell.setAttribute('data-level', '4');
+
+                // Hover interactions
+                cell.addEventListener('mouseenter', (e) => {
+                    const rect = cell.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
+                    const formattedDate = currentDate.toLocaleDateString(undefined, options);
+                    
+                    tooltip.innerHTML = `<strong>${count} tasks</strong> on ${formattedDate}`;
+                    
+                    tooltip.style.left = (rect.left - containerRect.left + (rect.width / 2)) + 'px';
+                    tooltip.style.top = (rect.top - containerRect.top) + 'px';
+                    tooltip.style.opacity = '1';
+                });
+
+                cell.addEventListener('mouseleave', () => {
+                    tooltip.style.opacity = '0';
+                });
+
+                grid.appendChild(cell);
+            });
+
+            monthWrapper.appendChild(grid);
+
+            // Add month label below
+            const label = document.createElement('div');
+            label.style.fontSize = '0.75rem';
+            label.style.color = 'var(--text-secondary)';
+            label.style.fontWeight = '600';
+            label.textContent = monthNames[month.monthIndex];
+            
+            monthWrapper.appendChild(label);
+            container.appendChild(monthWrapper);
+        });
+    }
+</script>
+{% endblock %}

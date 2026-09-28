@@ -1,0 +1,619 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Login - Nebula Planner{% endblock %}
+
+{% block main_class %}p-0{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/login.css' %}?v=7">
+{% endblock %}
+
+{% block content %}
+<section id="auth-section" class="auth-container">
+    <div class="auth-wrapper">
+        <div class="auth-inner">
+            <div class="auth-content-box">
+                <!-- Brand Logo & App Name -->
+                <div class="auth-brand">
+                    <div class="auth-brand-icon">
+                        <i data-lucide="compass" style="color: white; width: 22px; height: 22px;"></i>
+                    </div>
+                    <span class="auth-brand-name">Nebula Planner</span>
+                </div>
+
+                <h2 id="auth-title">Welcome back</h2>
+                <p class="auth-subtitle" id="auth-subtitle">Track your learning, build lasting habits.</p>
+
+                <!-- Inline Notification & Error Banners -->
+                <div id="auth-error" style="display: none;" class="auth-alert auth-alert-error">
+                    <i data-lucide="alert-circle" style="width: 17px; height: 17px; flex-shrink: 0;"></i>
+                    <span id="auth-error-text"></span>
+                </div>
+                <div id="auth-info" style="display: none;" class="auth-alert auth-alert-info">
+                    <i data-lucide="info" style="width: 17px; height: 17px; flex-shrink: 0;"></i>
+                    <span id="auth-info-text"></span>
+                </div>
+                <div id="auth-success" style="display: none;" class="auth-alert auth-alert-success">
+                    <i data-lucide="check-circle" style="width: 17px; height: 17px; flex-shrink: 0;"></i>
+                    <span id="auth-success-text"></span>
+                </div>
+
+                <!-- Google Sign-In Button -->
+                <button type="button" class="google-btn" id="google-login-btn" onclick="handleGoogleSignIn()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" style="width: 20px; height: 20px; min-width: 20px; max-width: 20px; display: inline-block; vertical-align: middle; flex-shrink: 0;">
+                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.94H1.24v3.15C3.26 21.36 7.33 24 12 24z"/>
+                        <path fill="#FBBC05" d="M5.28 14.26c-.25-.72-.38-1.49-.38-2.26s.13-1.54.38-2.26V6.59H1.24C.45 8.16 0 9.93 0 12s.45 3.84 1.24 5.41l4.04-3.15z"/>
+                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.24 6.59l4.04 3.15c.95-2.84 3.6-4.99 6.72-4.99z"/>
+                    </svg>
+                    <span>Continue with Google</span>
+                </button>
+
+                <div class="auth-divider" id="auth-divider">or continue with</div>
+
+                <!-- Navigation Tabs -->
+                <div class="auth-tabs" id="auth-tabs-bar">
+                    <button id="tab-login" class="auth-tab active" type="button" onclick="switchAuthMode('login')">Sign In</button>
+                    <button id="tab-register" class="auth-tab" type="button" onclick="switchAuthMode('register')">Register</button>
+                </div>
+
+                <!-- VIEW 1: Standard Username/Password & Register Form -->
+                <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+                    <div class="auth-form-group" id="username-group">
+                        <label for="auth-username" id="auth-username-label">Username or Email</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="user" class="input-icon"></i>
+                            <input type="text" id="auth-username" class="glass-input-styled" placeholder="Enter your username or email" required autocomplete="username">
+                        </div>
+                    </div>
+                    <div class="auth-form-group" id="email-group" style="display: none;">
+                        <label for="auth-email">Email Address</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="mail" class="input-icon"></i>
+                            <input type="email" id="auth-email" class="glass-input-styled" placeholder="you@example.com" autocomplete="email">
+                        </div>
+                    </div>
+                    <div class="auth-form-group" id="password-group">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="auth-password" id="auth-password-label" class="mb-0">Password</label>
+                            <span class="auth-link" id="forgot-password-link" onclick="openForgotPassword()">Forgot password?</span>
+                        </div>
+                        <div class="input-wrapper">
+                            <i data-lucide="lock" class="input-icon"></i>
+                            <input type="password" id="auth-password" class="glass-input-styled" placeholder="••••••••" required autocomplete="current-password">
+                        </div>
+                    </div>
+
+                    <div class="auth-actions">
+                        <button type="submit" id="auth-btn" class="auth-submit-btn">
+                            Sign In
+                        </button>
+                        <div class="auth-footer-prompt text-center" id="auth-footer-toggle">
+                            Don't have an account? <span class="auth-link" onclick="switchAuthMode('register')">Register here</span>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- VIEW 2: Two-Factor Authentication (2FA Challenge) -->
+                <div id="view-2fa" style="display: none;">
+                    <div class="text-center mb-2">
+                        <i data-lucide="shield-check" style="width: 36px; height: 36px; color: var(--accent-primary);"></i>
+                    </div>
+                    <p class="text-secondary small mb-2" id="2fa-msg">Enter the 6-digit code sent to your registered email to continue.</p>
+                    <form id="form-2fa" onsubmit="handleVerify2FA(event)">
+                        <div class="otp-inputs" id="2fa-otp-inputs">
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                        </div>
+                        <div class="auth-actions">
+                            <button type="submit" id="btn-2fa-verify" class="auth-submit-btn mb-2">
+                                Verify & Sign In
+                            </button>
+                            <div class="auth-footer-prompt text-center">
+                                <span class="auth-link" onclick="switchAuthMode('login')">Back to Sign In</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- VIEW 4: Forgot Password Flow -->
+                <div id="view-forgot" style="display: none;">
+                    <!-- Forgot Step 1: Send Reset OTP -->
+                    <form id="forgot-step1-form" onsubmit="handleForgotSendOTP(event)">
+                        <p class="text-secondary small mb-3">Enter your registered email and we'll send a 6-digit code to reset your password.</p>
+                        <div class="auth-form-group">
+                            <label for="forgot-email">Account Email</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="mail" class="input-icon"></i>
+                                <input type="email" id="forgot-email" class="glass-input-styled" placeholder="you@example.com" required autocomplete="email">
+                            </div>
+                        </div>
+                        <div class="auth-actions">
+                            <button type="submit" id="forgot-send-btn" class="auth-submit-btn">
+                                Send Reset Code
+                            </button>
+                            <div class="auth-footer-prompt text-center">
+                                <span class="auth-link" onclick="switchAuthMode('login')">Return to Sign In</span>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Forgot Step 2: Confirm OTP & New Password -->
+                    <form id="forgot-step2-form" style="display: none;" onsubmit="handleForgotResetPassword(event)">
+                        <p class="text-secondary small mb-2" id="forgot-step2-msg">Enter the 6-digit reset code and your new password.</p>
+                        <div class="otp-inputs" id="forgot-otp-inputs">
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                            <input type="text" maxlength="1" class="otp-digit" inputmode="numeric" pattern="[0-9]*" required>
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="forgot-new-password">New Password</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="lock" class="input-icon"></i>
+                                <input type="password" id="forgot-new-password" class="glass-input-styled" placeholder="At least 8 characters" required autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="auth-form-group">
+                            <label for="forgot-confirm-password">Confirm Password</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="lock" class="input-icon"></i>
+                                <input type="password" id="forgot-confirm-password" class="glass-input-styled" placeholder="Confirm new password" required autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="auth-actions">
+                            <button type="submit" id="forgot-reset-btn" class="auth-submit-btn">
+                                Update Password
+                            </button>
+                            <div class="auth-footer-prompt text-center">
+                                <span class="auth-link" onclick="switchAuthMode('login')">Cancel</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Google Identity Services SDK -->
+{% if google_client_id %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+{% endif %}
+
+<script>
+    const GOOGLE_CLIENT_ID = "{{ google_client_id|default:'' }}";
+    let currentAuthMode = 'login';
+    let twoFaSessionToken = null;
+    let pendingForgotEmail = '';
+    let resendCountdownInterval = null;
+
+    // Background floating particle effect
+    (function () {
+        function spawnParticles() {
+            const container = document.getElementById('auth-section');
+            if (!container) return;
+            const count = 16;
+            const colors = ['#A2B29F', '#BDD2B6', '#C1D8C3', '#E5EFE3'];
+
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('div');
+                p.className = 'auth-particle';
+                const size = Math.random() * 6 + 4;
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const dx = (Math.random() - 0.5) * 160 + 'px';
+                const dy = (Math.random() - 0.5) * 160 + 'px';
+                const duration = Math.random() * 8 + 8;
+                const delay = Math.random() * -8;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+
+                p.style.cssText = [
+                    `width: ${size}px`,
+                    `height: ${size}px`,
+                    `left: ${x}%`,
+                    `top: ${y}%`,
+                    `background: ${color}`,
+                    `opacity: 0.4`,
+                    `--dx: ${dx}`,
+                    `--dy: ${dy}`,
+                    `animation-duration: ${duration}s`,
+                    `animation-delay: ${delay}s`,
+                ].join(';');
+
+                container.appendChild(p);
+            }
+        }
+        spawnParticles();
+    })();
+
+    // Helper: Show/Hide Notification Banners
+    function clearBanners() {
+        document.getElementById('auth-error').style.display = 'none';
+        document.getElementById('auth-info').style.display = 'none';
+        document.getElementById('auth-success').style.display = 'none';
+    }
+
+    function showError(msg) {
+        clearBanners();
+        const err = document.getElementById('auth-error');
+        document.getElementById('auth-error-text').textContent = msg;
+        err.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function showInfo(msg) {
+        clearBanners();
+        const info = document.getElementById('auth-info');
+        document.getElementById('auth-info-text').textContent = msg;
+        info.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function showSuccess(msg) {
+        clearBanners();
+        const succ = document.getElementById('auth-success');
+        document.getElementById('auth-success-text').textContent = msg;
+        succ.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // Switch between Main Tabs
+    function switchAuthMode(mode) {
+        currentAuthMode = mode;
+        clearBanners();
+
+        const btnLogin = document.getElementById('tab-login');
+        const btnRegister = document.getElementById('tab-register');
+
+        const authForm = document.getElementById('auth-form');
+        const view2fa = document.getElementById('view-2fa');
+        const viewForgot = document.getElementById('view-forgot');
+
+        const authTitle = document.getElementById('auth-title');
+        const authSubtitle = document.getElementById('auth-subtitle');
+        const authBtn = document.getElementById('auth-btn');
+        const emailGroup = document.getElementById('email-group');
+        const forgotLink = document.getElementById('forgot-password-link');
+        const usernameLabel = document.getElementById('auth-username-label');
+        const usernameInput = document.getElementById('auth-username');
+        const passwordLabel = document.getElementById('auth-password-label');
+        const footerToggle = document.getElementById('auth-footer-toggle');
+
+        authForm.style.display = 'none';
+        view2fa.style.display = 'none';
+        viewForgot.style.display = 'none';
+        document.getElementById('auth-tabs-bar').style.display = 'flex';
+        document.getElementById('google-login-btn').style.display = 'flex';
+        document.getElementById('auth-divider').style.display = 'flex';
+
+        btnLogin.classList.remove('active');
+        btnRegister.classList.remove('active');
+
+        if (mode === 'login') {
+            btnLogin.classList.add('active');
+            authForm.style.display = 'block';
+            emailGroup.style.display = 'none';
+            forgotLink.style.display = 'inline';
+            usernameLabel.textContent = 'Username or Email';
+            usernameInput.placeholder = 'Enter your username or email';
+            passwordLabel.textContent = 'Password';
+            authTitle.textContent = 'Welcome back';
+            authSubtitle.textContent = 'Track your learning, build lasting habits.';
+            authBtn.textContent = 'Sign In';
+            footerToggle.innerHTML = `Don't have an account? <span class="auth-link" onclick="switchAuthMode('register')">Register here</span>`;
+            document.getElementById('auth-email').required = false;
+        } else if (mode === 'register') {
+            btnRegister.classList.add('active');
+            authForm.style.display = 'block';
+            emailGroup.style.display = 'block';
+            forgotLink.style.display = 'none';
+            usernameLabel.textContent = 'Choose Username';
+            usernameInput.placeholder = 'Choose a username';
+            passwordLabel.textContent = 'Create Password';
+            authTitle.textContent = 'Join Nebula';
+            authSubtitle.textContent = 'Create your account to start tracking.';
+            authBtn.textContent = 'Create Account';
+            footerToggle.innerHTML = `Already have an account? <span class="auth-link" onclick="switchAuthMode('login')">Sign in here</span>`;
+            document.getElementById('auth-email').required = true;
+        }
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // Switch to Forgot Password View
+    function openForgotPassword() {
+        clearBanners();
+        document.getElementById('auth-form').style.display = 'none';
+        document.getElementById('view-2fa').style.display = 'none';
+        document.getElementById('view-forgot').style.display = 'block';
+        document.getElementById('auth-tabs-bar').style.display = 'none';
+        document.getElementById('google-login-btn').style.display = 'none';
+        document.getElementById('auth-divider').style.display = 'none';
+
+        document.getElementById('auth-title').textContent = 'Reset Password';
+        document.getElementById('auth-subtitle').textContent = 'Recover access to your account.';
+
+        document.getElementById('forgot-step1-form').style.display = 'block';
+        document.getElementById('forgot-step2-form').style.display = 'none';
+        document.getElementById('forgot-email').value = '';
+    }
+
+    // Setup 6-digit OTP Inputs behavior
+    function setupOtpInputs(containerId, onCompleteCallback) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const inputs = Array.from(container.querySelectorAll('.otp-digit'));
+
+        inputs.forEach((input, index) => {
+            input.value = '';
+            input.oninput = (e) => {
+                const val = e.target.value;
+                if (!/^[0-9]$/.test(val)) {
+                    input.value = '';
+                    return;
+                }
+                if (index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                } else {
+                    input.blur();
+                    if (onCompleteCallback) onCompleteCallback();
+                }
+            };
+
+            input.onkeydown = (e) => {
+                if (e.key === 'Backspace' && !input.value && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            };
+
+            input.onpaste = (e) => {
+                e.preventDefault();
+                const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
+                const digits = pasteData.replace(/\D/g, '').slice(0, inputs.length);
+                digits.split('').forEach((d, i) => {
+                    if (inputs[i]) inputs[i].value = d;
+                });
+                if (digits.length >= inputs.length) {
+                    inputs[inputs.length - 1].blur();
+                    if (onCompleteCallback) onCompleteCallback();
+                } else if (inputs[digits.length]) {
+                    inputs[digits.length].focus();
+                }
+            };
+        });
+    }
+
+    function getOtpValue(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return '';
+        const inputs = Array.from(container.querySelectorAll('.otp-digit'));
+        return inputs.map(i => i.value.trim()).join('');
+    }
+
+    // 1. Password / Registration Submission
+    async function handleAuthSubmit(e) {
+        e.preventDefault();
+        clearBanners();
+
+        const username = document.getElementById('auth-username').value.trim();
+        const password = document.getElementById('auth-password').value;
+        const authBtn = document.getElementById('auth-btn');
+
+        authBtn.disabled = true;
+        authBtn.textContent = 'Please wait...';
+
+        try {
+            if (currentAuthMode === 'login') {
+                const data = await apiRequest('auth/login/', 'POST', { username, password }, true);
+                if (data.requires_2fa) {
+                    twoFaSessionToken = data.session_token;
+                    show2FAView(data.masked_email);
+                    return;
+                }
+                window.location.href = '/';
+            } else {
+                const email = document.getElementById('auth-email').value.trim();
+                const data = await apiRequest('auth/register/', 'POST', { username, email, password }, true);
+                if (data) {
+                    window.location.href = '/';
+                }
+            }
+        } catch (err) {
+            showError(err.message || 'Authentication failed.');
+        } finally {
+            authBtn.disabled = false;
+            authBtn.textContent = currentAuthMode === 'login' ? 'Sign In' : 'Create Account';
+        }
+    }
+
+    // 2. Two-Factor Authentication (2FA) Challenge
+    function show2FAView(maskedEmail) {
+        document.getElementById('auth-form').style.display = 'none';
+        document.getElementById('view-forgot').style.display = 'none';
+        document.getElementById('auth-tabs-bar').style.display = 'none';
+        document.getElementById('google-login-btn').style.display = 'none';
+        document.getElementById('auth-divider').style.display = 'none';
+
+        const view2fa = document.getElementById('view-2fa');
+        view2fa.style.display = 'block';
+
+        document.getElementById('auth-title').textContent = 'Two-Factor Verification';
+        document.getElementById('auth-subtitle').textContent = 'Security check';
+        document.getElementById('2fa-msg').textContent = `Enter the 6-digit code sent to ${maskedEmail || 'your email'}.`;
+
+        setupOtpInputs('2fa-otp-inputs', () => {
+            document.getElementById('btn-2fa-verify').click();
+        });
+
+        setTimeout(() => {
+            const firstInput = document.querySelector('#2fa-otp-inputs .otp-digit');
+            if (firstInput) firstInput.focus();
+        }, 150);
+    }
+
+    async function handleVerify2FA(e) {
+        e.preventDefault();
+        clearBanners();
+
+        const otp_code = getOtpValue('2fa-otp-inputs');
+        if (otp_code.length !== 6) {
+            showError('Please enter the complete 6-digit code.');
+            return;
+        }
+
+        const btn = document.getElementById('btn-2fa-verify');
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+
+        try {
+            const data = await apiRequest('auth/login/verify-2fa/', 'POST', {
+                session_token: twoFaSessionToken,
+                otp_code: otp_code
+            }, true);
+            if (data) {
+                window.location.href = '/';
+            }
+        } catch (err) {
+            showError(err.message || 'Verification failed. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Verify & Sign In';
+        }
+    }
+
+    // 3. Forgot Password Flow
+    async function handleForgotSendOTP(e) {
+        e.preventDefault();
+        clearBanners();
+
+        const email = document.getElementById('forgot-email').value.trim();
+        const btn = document.getElementById('forgot-send-btn');
+        btn.disabled = true;
+        btn.textContent = 'Sending code...';
+
+        try {
+            const res = await apiRequest('auth/password-reset/send-otp/', 'POST', { email }, true);
+            pendingForgotEmail = email;
+            document.getElementById('forgot-step1-form').style.display = 'none';
+            document.getElementById('forgot-step2-form').style.display = 'block';
+            document.getElementById('forgot-step2-msg').textContent = `Code sent to ${res.masked_email || email}. Enter it below along with your new password.`;
+            showInfo(res.message);
+
+            setupOtpInputs('forgot-otp-inputs');
+
+            setTimeout(() => {
+                const first = document.querySelector('#forgot-otp-inputs .otp-digit');
+                if (first) first.focus();
+            }, 100);
+        } catch (err) {
+            showError(err.message || 'Failed to send reset code.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Send Reset Code';
+        }
+    }
+
+    async function handleForgotResetPassword(e) {
+        e.preventDefault();
+        clearBanners();
+
+        const otp_code = getOtpValue('forgot-otp-inputs');
+        const new_password = document.getElementById('forgot-new-password').value;
+        const confirm_password = document.getElementById('forgot-confirm-password').value;
+
+        if (otp_code.length !== 6) {
+            showError('Please enter the complete 6-digit reset code.');
+            return;
+        }
+
+        if (new_password !== confirm_password) {
+            showError('New passwords do not match.');
+            return;
+        }
+
+        const btn = document.getElementById('forgot-reset-btn');
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+
+        try {
+            const res = await apiRequest('auth/password-reset/confirm/', 'POST', {
+                email: pendingForgotEmail,
+                otp_code: otp_code,
+                new_password: new_password
+            }, true);
+
+            switchAuthMode('login');
+            showSuccess(res.message || 'Password reset successfully! Please sign in.');
+            document.getElementById('auth-username').value = pendingForgotEmail;
+        } catch (err) {
+            showError(err.message || 'Password reset failed.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Update Password';
+        }
+    }
+
+    // 5. Google Sign-In Flow
+    function handleGoogleSignIn() {
+        if (!GOOGLE_CLIENT_ID) {
+            showInfo("Google OAuth credentials are not yet set in .env. You can add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable Google Sign-In.");
+            return;
+        }
+
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+            google.accounts.id.prompt((notification) => {
+                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                    window.location.href = '/api/v1/auth/google/login/';
+                }
+            });
+        } else {
+            window.location.href = '/api/v1/auth/google/login/';
+        }
+    }
+
+    async function handleGoogleCredentialResponse(response) {
+        clearBanners();
+        try {
+            const data = await apiRequest('auth/google/', 'POST', {
+                credential: response.credential
+            }, true);
+            if (data) {
+                window.location.href = '/';
+            }
+        } catch (err) {
+            showError(err.message || 'Google sign in failed.');
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide) lucide.createIcons();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryError = urlParams.get('error');
+        if (queryError) {
+            showError(decodeURIComponent(queryError));
+        }
+
+        if (GOOGLE_CLIENT_ID) {
+            window.onload = function () {
+                if (window.google && window.google.accounts && window.google.accounts.id) {
+                    google.accounts.id.initialize({
+                        client_id: GOOGLE_CLIENT_ID,
+                        callback: handleGoogleCredentialResponse
+                    });
+                }
+            };
+        }
+    });
+</script>
+{% endblock %}

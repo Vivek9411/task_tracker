@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Task Notes - Nebula Planner{% endblock %}
+
+{% block body_class %}dashboard-layout{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/goal_notes.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="row">
+        <!-- Sidebar -->
+        {% include 'partials/sidebar.html' %}
+
+        <!-- Main Content -->
+        <div class="col-12 col-xl-9">
+            <div class="notes-header">
+                <a href="/?goal_id={{ goal_id }}" class="back-btn" title="Go Back">
+                    <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+                </a>
+                <div>
+                    <h2 class="mb-1" id="task-title-header" style="font-family: var(--font-display); font-weight: 600; color: var(--text-primary);">Loading Task...</h2>
+                    <div id="task-desc-header" style="color: var(--text-secondary); font-size: 0.95rem;"></div>
+                </div>
+                <div class="ms-auto">
+                    <button class="glass-button primary" onclick="openLogModal()">
+                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                        <span class="ms-2">Add Note</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="notes-container">
+                <div class="notes-section">
+                    <h4><i data-lucide="book-open"></i> General Notes</h4>
+                    <div id="notes-list">
+                        <!-- Rendered by JS -->
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">No notes available.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Problems Faced Section -->
+            <div class="notes-container">
+                <div class="notes-section">
+                    <h4><i data-lucide="alert-triangle"></i> Problems Faced</h4>
+                    <div id="problems-list">
+                        <!-- Rendered by JS -->
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">No problems logged.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Updates / What I Learned Section -->
+            <div class="notes-container">
+                <div class="notes-section" style="margin-bottom: 0;">
+                    <h4><i data-lucide="zap"></i> Updates & Learnings</h4>
+                    <div id="updates-list">
+                        <!-- Rendered by JS -->
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">No updates yet.</div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- Log Form Modal -->
+<div class="modal-overlay" id="log-modal">
+    <div class="modal-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0" id="log-modal-title" style="font-family: var(--font-display); font-weight: 600;">Add Note</h4>
+            <button class="btn-close" onclick="closeLogModal()" style="box-shadow: none;"></button>
+        </div>
+        
+        <form id="log-form" onsubmit="handleLogSubmit(event)" style="display: flex; flex-direction: column; gap: 16px;">
+            <input type="hidden" id="modal-log-id">
+            <div>
+                <label style="font-size: 0.9rem; font-weight: 500; margin-bottom: 8px;">Updates & Learnings</label>
+                <textarea id="modal-learned" class="glass-input" rows="3" placeholder="What did you learn?" style="resize: none;"></textarea>
+            </div>
+            <div>
+                <label style="font-size: 0.9rem; font-weight: 500; margin-bottom: 8px;">Problems Faced (Optional)</label>
+                <textarea id="modal-problems" class="glass-input" rows="2" placeholder="Any blockers?" style="resize: none;"></textarea>
+            </div>
+            <div>
+                <label style="font-size: 0.9rem; font-weight: 500; margin-bottom: 8px;">General Notes (Optional)</label>
+                <textarea id="modal-notes" class="glass-input" rows="2" placeholder="Additional details..." style="resize: none;"></textarea>
+            </div>
+            <button type="submit" class="glass-button primary w-100 justify-content-center mt-2">
+                Save Note
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const goalId = '{{ goal_id }}';
+    let currentLogs = [];
+
+    async function apiRequest(endpoint, method = 'GET', body = null) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        };
+        const config = { method, headers };
+        if (body) {
+            config.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(`/api/v1/${endpoint}`, config);
+            if (response.status === 401 || response.status === 403) {
+                window.location.href = '/login/';
+                return null;
+            }
+            if (!response.ok) {
+                const err = await response.json();
+                showToast(err.error || 'Request failed', 'error');
+                return null;
+            }
+            return await response.json();
+        } catch (err) {
+            showToast('Network error', 'error');
+            return null;
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function initPage() {
+        lucide.createIcons();
+        
+        // Fetch User and Streak for sidebar
+        const user = await apiRequest('auth/user/');
+        if (!user) return;
+        
+        const streak = await apiRequest('user/streak/');
+        if (streak) {
+            document.getElementById('streak-current').textContent = streak.current_streak;
+            document.getElementById('streak-longest').textContent = `Personal Best: ${streak.longest_streak} days`;
+            document.getElementById('streak-current').className = 'streak-number';
+            document.getElementById('streak-longest').className = 'streak-record';
+        }
+
+        // Fetch Task details
+        const goals = await apiRequest('goals/');
+        const goal = goals ? goals.find(g => g.id === goalId) : null;
+        if (goal) {
+            document.getElementById('task-title-header').textContent = goal.title;
+            document.getElementById('task-desc-header').textContent = `Total Days: ${goal.total_days} • ${goal.is_ai ? 'AI Plan' : 'Manual Plan'}`;
+        }
+        
+        if (goals) {
+            renderGoalsSidebar(goals);
+        }
+        
+        loadLogs();
+    }
+    
+    function renderGoalsSidebar(goals) {
+        const container = document.getElementById('goals-list-container');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        goals.forEach(goal => {
+            const el = document.createElement('div');
+            el.className = `goal-item ${goal.id === goalId ? 'active' : ''}`;
+            // Redirect to dashboard with this goal active
+            el.onclick = () => window.location.href = `/?goal_id=${goal.id}`;
+
+            const labelClass = !goal.is_ai ? 'manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'weekend' : 'all');
+            const labelText = !goal.is_ai ? 'Manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'Weekends' : 'Daily');
+
+            el.innerHTML = `
+                <div>
+                    <div class="goal-item-title">${goal.title}</div>
+                    <div class="goal-item-meta">${goal.total_days} Lessons • <span class="badge ${labelClass}">${labelText}</span></div>
+                </div>
+                <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--accent-primary)"></i>
+            `;
+            container.appendChild(el);
+        });
+        lucide.createIcons();
+    }
+    
+    async function loadLogs() {
+        const logs = await apiRequest(`goals/${goalId}/logs/`);
+        if (logs) {
+            currentLogs = logs;
+            renderLogsList(logs);
+        }
+    }
+    
+    function renderLogsList(logs) {
+        const notesList = document.getElementById('notes-list');
+        const problemsList = document.getElementById('problems-list');
+        const updatesList = document.getElementById('updates-list');
+        
+        notesList.innerHTML = '';
+        problemsList.innerHTML = '';
+        updatesList.innerHTML = '';
+        
+        if (logs.length === 0) {
+            notesList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No notes available.</div>';
+            problemsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No problems logged.</div>';
+            updatesList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No updates yet.</div>';
+            return;
+        }
+        
+        let hasNotes = false, hasProblems = false, hasUpdates = false;
+
+        logs.forEach(log => {
+            const dateStr = new Date(log.log_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const sourceLabel = log.task_title ? `From: ${log.task_title}` : `General Note`;
+            
+            const createHtml = (content) => `
+                <div class="log-entry">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="log-date m-0">${dateStr}</div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge" style="background: var(--bg-secondary); color: var(--text-secondary); font-size: 0.7rem; font-weight: 500;">${sourceLabel}</span>
+                            <button class="log-edit-btn" onclick="openLogModal('${log.id}')" title="Edit Note">
+                                <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-content">${content}</div>
+                </div>
+            `;
+            
+            if (log.additional_notes) {
+                notesList.innerHTML += createHtml(log.additional_notes);
+                hasNotes = true;
+            }
+            if (log.problems_faced) {
+                problemsList.innerHTML += createHtml(log.problems_faced);
+                hasProblems = true;
+            }
+            if (log.learned) {
+                updatesList.innerHTML += createHtml(log.learned);
+                hasUpdates = true;
+            }
+        });
+        
+        if (!hasNotes) notesList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No notes available.</div>';
+        if (!hasProblems) problemsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No problems logged.</div>';
+        if (!hasUpdates) updatesList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.9rem;">No updates yet.</div>';
+        
+        lucide.createIcons();
+    }
+    
+    function openLogModal(logId = null) {
+        const modal = document.getElementById('log-modal');
+        const form = document.getElementById('log-form');
+        form.reset();
+        
+        if (logId) {
+            const log = currentLogs.find(l => l.id === logId);
+            if (log) {
+                document.getElementById('modal-log-id').value = log.id;
+                document.getElementById('modal-learned').value = log.learned || '';
+                document.getElementById('modal-problems').value = log.problems_faced || '';
+                document.getElementById('modal-notes').value = log.additional_notes || '';
+                document.getElementById('log-modal-title').textContent = "Edit Note";
+            }
+        } else {
+            document.getElementById('modal-log-id').value = '';
+            document.getElementById('log-modal-title').textContent = "Add Note";
+        }
+        
+        modal.classList.add('open');
+    }
+    
+    function closeLogModal() {
+        const modal = document.getElementById('log-modal');
+        modal.classList.remove('open');
+    }
+    
+    async function handleLogSubmit(e) {
+        e.preventDefault();
+        const logId = document.getElementById('modal-log-id').value;
+        const learned = document.getElementById('modal-learned').value;
+        const problems = document.getElementById('modal-problems').value;
+        const notes = document.getElementById('modal-notes').value;
+        
+        const payload = {
+            learned: learned,
+            problems_faced: problems,
+            additional_notes: notes
+        };
+        
+        let res;
+        if (logId) {
+            res = await apiRequest(`logs/${logId}/`, 'PATCH', payload);
+        } else {
+            res = await apiRequest(`goals/${goalId}/logs/`, 'POST', payload);
+        }
+        
+        if (res) {
+            closeLogModal();
+            showToast('Note saved successfully', 'success');
+            loadLogs();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initPage);
+</script>
+{% endblock %}

@@ -1,0 +1,846 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Nebula Planner{% endblock %}
+
+{% block body_class %}dashboard-layout{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<section id="dashboard-section" class="container-fluid px-0 px-xl-4">
+    <div class="row gx-4">
+        {% include 'partials/sidebar.html' %}
+
+        <!-- Main Interactive Workspace -->
+        <div class="col-12 col-xl-9 workspace">
+            <!-- State A: Welcome / Create Goal Form -->
+            <div id="welcome-state" class="glass-panel welcome-card">
+                <!-- <div style="font-size: 4rem; margin-bottom: 20px;">✨</div> -->
+                <h2>Design Your Learning Track</h2>
+                <p>Tell Nebula what topic you want to master. Let the AI map out a tailored study schedule optimized for
+                    your life, or build a custom manual plan.</p>
+
+                <form id="goal-form" onsubmit="handleGoalCreate(event)"
+                    style="max-width: 500px; margin: 0 auto; text-align: left; display: flex; flex-direction: column; gap: 20px;">
+                    <div>
+                        <label for="goal-title"
+                            style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">What do you want
+                            to learn?</label>
+                        <input type="text" id="goal-title" class="glass-input"
+                            placeholder="e.g. Learn React, Master SQL" required>
+                    </div>
+
+                    <div>
+                        <label for="goal-mode"
+                            style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Planning
+                            Mode</label>
+                        <select id="goal-mode" class="glass-input" onchange="toggleGoalModeInputs()">
+                            <option value="AI">AI Roadmap (Interview & AI Plan)</option>
+                            <option value="MANUAL">Manual Plan (Custom Frequency & Offline)</option>
+                        </select>
+                    </div>
+
+                    <!-- AI Mode Params -->
+                    <div id="ai-mode-params" class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label for="goal-days"
+                                style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Plan
+                                Duration (Days)</label>
+                            <input type="number" id="goal-days" class="glass-input" min="3" max="30" value="14">
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label for="goal-schedule"
+                                style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Schedule
+                                Strategy</label>
+                            <select id="goal-schedule" class="glass-input">
+                                <option value="ALL_DAYS">Daily</option>
+                                <option value="WEEKENDS_ONLY">Weekends Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Manual Mode Params -->
+                    <div id="manual-mode-params" class="row g-3" style="display: none;">
+                        <div class="col-12 col-sm-6">
+                            <label for="goal-frequency"
+                                style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Frequency
+                                (Days/Week)</label>
+                            <input type="number" id="goal-frequency" class="glass-input" min="1" max="7" value="3">
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label for="goal-weeks"
+                                style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Duration
+                                (Weeks)</label>
+                            <input type="number" id="goal-weeks" class="glass-input" min="1" max="12" value="4">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="glass-button primary"
+                        style="width: 100%; justify-content: center; margin-top: 10px; padding: 14px;">
+                        Initialize Roadmap
+                    </button>
+                </form>
+            </div>
+
+            <!-- State B: AI Interview Wizard -->
+            <div id="wizard-state" class="glass-panel wizard-card" style="display: none;">
+                <div class="wizard-progress">
+                    <div id="wizard-progress-fill" class="wizard-progress-bar"></div>
+                </div>
+                <div class="wizard-question-container">
+                    <div class="wizard-question-label" id="wizard-step-label">Question 1 of 3</div>
+                    <div class="wizard-question-text" id="wizard-question-content">AI Question will load here...</div>
+                    <input type="text" id="wizard-answer" class="glass-input" placeholder="Type your answer here..."
+                        required>
+                </div>
+                <div class="wizard-actions">
+                    <button class="glass-button" id="wizard-prev-btn" onclick="prevWizardQuestion()"
+                        style="opacity: 0; pointer-events: none;">
+                        <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+                    </button>
+                    <button class="glass-button primary" id="wizard-next-btn" onclick="nextWizardQuestion()">
+                        Next <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- State C: Loader view -->
+            <div id="loader-state" class="glass-panel loader-container" style="display: none;">
+                <div class="loader"></div>
+                <h3 class="loader-title" id="loader-headline">Synthesizing...</h3>
+                <p class="loader-subtitle" id="loader-body">Structuring your customized roadmap.</p>
+            </div>
+
+            <!-- State D: Active Roadmap Timeline -->
+            <div id="roadmap-state" class="roadmap-container" style="display: none;">
+                <div class="roadmap-header">
+                    <div>
+                        <div class="roadmap-title" id="active-goal-title">Learning Track</div>
+                        <div class="roadmap-subtitle" id="active-goal-subtitle">Plan Overview</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-3 mt-sm-0">
+                        <div class="d-flex gap-2" id="active-goal-badges"></div>
+                        <a id="goal-notes-btn" href="#" class="glass-button ms-2 text-decoration-none"
+                            style="height: 40px; width: 100px; justify-content: center; padding: 0;">
+                            <i data-lucide="book-open" style="width: 16px; height: 16px;"></i>
+                            <span class="d-none d-sm-inline ms-1">Wiki</span>
+                        </a>
+                        <button id="download-pdf-btn" onclick="downloadGoalPDF()" class="glass-button ms-2"
+                            style="height: 40px; width: 100px; justify-content: center; padding: 0;">
+                            <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                            <span class="d-none d-sm-inline ms-1">PDF</span>
+                        </button>
+                        <button id="delete-goal-btn" onclick="deleteActiveGoal()" class="glass-button text-danger ms-2"
+                            style="height: 40px; width: 100px; justify-content: center; padding: 0;">
+                            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                            <span class="d-none d-sm-inline ms-1">Delete</span>
+                        </button>
+                        <button id="quiz-goal-btn" onclick="generateQuizForGoal()" class="glass-button ms-2"
+                            style="height: 40px; width: 100px; justify-content: center; padding: 0;">
+                            <i data-lucide="help-circle" style="width: 16px; height: 16px;"></i>
+                            <span class="d-none d-sm-inline ms-1">Quiz</span>
+                        </button>
+                        <button class="glass-button primary ms-2" onclick="openCreateTaskDrawer()"
+                            style="height: 40px; width: 100px; justify-content: center; padding: 0;">
+                            <i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i>
+                            <span class="d-none d-sm-inline ms-1">Add</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="timeline" id="active-timeline">
+                    <!-- Timeline Items injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CREATE TASK DRAWER -->
+<div class="drawer" id="create-task-drawer">
+    <div class="drawer-header">
+        <div class="drawer-title">Add Custom Task</div>
+        <button class="drawer-close" onclick="closeCreateTaskDrawer()">
+            <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+    </div>
+    <div class="drawer-section">
+        <form id="create-task-form" onsubmit="handleCreateTaskSubmit(event)"
+            style="display: flex; flex-direction: column; gap: 20px;">
+            <div>
+                <label>Task Title</label>
+                <input type="text" id="new-task-title" class="glass-input" placeholder="e.g., Read chapter 1" required>
+            </div>
+            <div>
+                <label>Description (Optional)</label>
+                <textarea id="new-task-desc" class="glass-input" rows="4" style="resize: none;"
+                    placeholder="Specific goals..."></textarea>
+            </div>
+            <div>
+                <label>Scheduled Date (Optional)</label>
+                <input type="date" id="new-task-date" class="glass-input">
+            </div>
+            <button type="submit" class="glass-button primary" style="justify-content: center; margin-top: 10px;">
+                Create Task
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- SIDEBAR DETAIL DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="task-drawer">
+    <div class="drawer-header">
+        <div class="drawer-title" id="drawer-task-title">Task Title</div>
+        <button class="drawer-close" onclick="closeDrawer()">
+            <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+    </div>
+
+    <div class="drawer-section">
+        <label>Lesson Specs</label>
+        <div id="drawer-task-desc"
+            style="font-size: 0.95rem; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap;"></div>
+    </div>
+
+    <div class="drawer-section" id="drawer-form-container">
+        <label>Post Daily Update</label>
+        <form id="progress-log-form" onsubmit="handleProgressLogSubmit(event)"
+            style="display: flex; flex-direction: column; gap: 16px;">
+            <input type="hidden" id="log-task-id">
+            <div>
+                <textarea id="log-learned" class="glass-input" rows="3"
+                    placeholder="What I Learned Today (Core ideas, syntax)..." required
+                    style="resize: none;"></textarea>
+            </div>
+            <div>
+                <textarea id="log-problems" class="glass-input" rows="2"
+                    placeholder="Problems Faced / Blockers (Optional)..." style="resize: none;"></textarea>
+            </div>
+            <div>
+                <textarea id="log-notes" class="glass-input" rows="2"
+                    placeholder="Additional Notes / Next Steps (Optional)..." style="resize: none;"></textarea>
+            </div>
+            <button type="submit" class="glass-button primary" style="justify-content: center;">
+                Submit Log Entry
+            </button>
+        </form>
+    </div>
+
+    <div class="progress-logs-history" id="drawer-history-container">
+        <label>Update History</label>
+        <div id="drawer-history-list"></div>
+    </div>
+</div>
+
+<!-- EDIT TASK DRAWER -->
+<div class="drawer" id="edit-task-drawer">
+    <div class="drawer-header">
+        <div class="drawer-title" id="edit-drawer-title">Task Details</div>
+        <button class="drawer-close" onclick="closeEditTaskDrawer()">
+            <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+    </div>
+    <div class="drawer-section">
+        <form id="edit-task-form" onsubmit="handleEditTaskSubmit(event)"
+            style="display: flex; flex-direction: column; gap: 20px;">
+            <input type="hidden" id="edit-task-id">
+            <div>
+                <label>Task Title</label>
+                <input type="text" id="edit-task-title" class="glass-input" required disabled>
+            </div>
+            <div>
+                <label>Description (Optional)</label>
+                <textarea id="edit-task-desc" class="glass-input" rows="6" style="resize: none;" disabled></textarea>
+            </div>
+            <div>
+                <label>Scheduled Date (Optional)</label>
+                <input type="date" id="edit-task-date" class="glass-input" disabled>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button type="button" id="enable-edit-btn" class="glass-button" onclick="enableTaskEditing()"
+                    style="flex: 1; justify-content: center;">
+                    <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i> Edit
+                </button>
+                <button type="submit" id="save-task-btn" class="glass-button primary"
+                    style="flex: 1; justify-content: center; display: none;">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let activeGoal = null;
+    let activeQuestions = [];
+    let wizardCurrentIndex = 0;
+    let activeTasks = [];
+
+    function formatTaskDescription(text) {
+        if (!text) return '';
+        // Safe escape of HTML to prevent injection
+        let escaped = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+        // Replace markdown bold **text** with <strong>text</strong>
+        let formatted = escaped.replace(/\*\*(.*?)\*\//g, '<strong>$1</strong>'); // fallback support
+        formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Replace markdown inline code `code` with <code>code</code>
+        formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+        return formatted;
+    }
+
+    // Invoked by base.html automatically after successful session check
+    async function initDashboard(user) {
+        loadStreak();
+        const goals = await loadGoalsList();
+
+        const params = new URLSearchParams(window.location.search);
+        const goalId = params.get('goal_id');
+
+        if (goalId && goals) {
+            const goal = goals.find(g => g.id === goalId);
+            if (goal) {
+                selectGoal(goal);
+                return;
+            }
+        }
+
+        showCreateGoalForm();
+    }
+
+    // Streaks Loader
+    async function loadStreak() {
+        const data = await apiRequest('user/streak/');
+        if (data) {
+            document.getElementById('streak-current').textContent = data.current_streak;
+            document.getElementById('streak-longest').textContent = `Personal Best: ${data.longest_streak} days`;
+        }
+    }
+
+    // Goals List Loader
+    async function loadGoalsList() {
+        const data = await apiRequest('goals/');
+        const container = document.getElementById('goals-list-container');
+        container.innerHTML = '';
+
+        if (data && data.length > 0) {
+            data.forEach(goal => {
+                const el = document.createElement('div');
+                el.className = `goal-item ${activeGoal && activeGoal.id === goal.id ? 'active' : ''}`;
+                el.onclick = () => selectGoal(goal);
+
+                const labelClass = !goal.is_ai ? 'manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'weekend' : 'all');
+                const labelText = !goal.is_ai ? 'Manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'Weekends' : 'Daily');
+
+                el.innerHTML = `
+                    <div>
+                        <div class="goal-item-title">${goal.title}</div>
+                        <div class="goal-item-meta">${goal.total_days} Lessons • <span class="badge ${labelClass}">${labelText}</span></div>
+                    </div>
+                    <i data-lucide="chevron-right" style="width: 16px; height: 16px; color: var(--accent-primary)"></i>
+                `;
+                container.appendChild(el);
+            });
+            lucide.createIcons();
+        } else {
+            container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 20px;">No tracks created yet.</div>';
+        }
+        return data;
+    }
+
+    function showCreateGoalForm() {
+        activeGoal = null;
+        loadGoalsList();
+        document.getElementById('welcome-state').style.display = 'block';
+        document.getElementById('wizard-state').style.display = 'none';
+        document.getElementById('loader-state').style.display = 'none';
+        document.getElementById('roadmap-state').style.display = 'none';
+
+        document.getElementById('goal-mode').value = 'AI';
+        toggleGoalModeInputs();
+    }
+
+    function toggleGoalModeInputs() {
+        const mode = document.getElementById('goal-mode').value;
+        const aiParams = document.getElementById('ai-mode-params');
+        const manualParams = document.getElementById('manual-mode-params');
+
+        if (mode === 'AI') {
+            aiParams.style.display = 'grid';
+            manualParams.style.display = 'none';
+        } else {
+            aiParams.style.display = 'none';
+            manualParams.style.display = 'grid';
+        }
+    }
+
+    // Goal Create Submission
+    async function handleGoalCreate(e) {
+        e.preventDefault();
+        const title = document.getElementById('goal-title').value;
+        const mode = document.getElementById('goal-mode').value;
+        let payload = { title };
+
+        if (mode === 'AI') {
+            payload.is_ai = true;
+            payload.total_days = document.getElementById('goal-days').value;
+            payload.schedule_type = document.getElementById('goal-schedule').value;
+            document.getElementById('welcome-state').style.display = 'none';
+            showLoader("Contacting AI Mentor...", "Sizing up your learning parameters for our interview.");
+        } else {
+            payload.is_ai = false;
+            payload.frequency_days_per_week = document.getElementById('goal-frequency').value;
+            payload.duration_weeks = document.getElementById('goal-weeks').value;
+            payload.total_days = payload.frequency_days_per_week * payload.duration_weeks;
+            payload.schedule_type = 'ALL_DAYS';
+            document.getElementById('welcome-state').style.display = 'none';
+            showLoader("Generating Manual Track...", "Creating scheduled tasks for your learning track.");
+        }
+
+        const data = await apiRequest('goals/', 'POST', payload);
+        if (data) {
+            activeGoal = data;
+            loadGoalsList();
+
+            if (data.questions_answered) {
+                loadRoadmap(data);
+            } else {
+                activeQuestions = data.questions || [];
+                wizardCurrentIndex = 0;
+                startWizard();
+            }
+        } else {
+            showCreateGoalForm();
+        }
+    }
+
+    // Interview Wizard Setup
+    function startWizard() {
+        document.getElementById('loader-state').style.display = 'none';
+        document.getElementById('wizard-state').style.display = 'block';
+        showWizardQuestion();
+    }
+
+    function showWizardQuestion() {
+        if (activeQuestions.length === 0) return;
+
+        const fillPercent = ((wizardCurrentIndex) / activeQuestions.length) * 100;
+        document.getElementById('wizard-progress-fill').style.width = `${fillPercent}%`;
+
+        const q = activeQuestions[wizardCurrentIndex];
+        document.getElementById('wizard-step-label').textContent = `Question ${wizardCurrentIndex + 1} of ${activeQuestions.length}`;
+        document.getElementById('wizard-question-content').textContent = q.question_text;
+        document.getElementById('wizard-answer').value = q.answer_text || '';
+        document.getElementById('wizard-answer').focus();
+
+        const prevBtn = document.getElementById('wizard-prev-btn');
+        if (wizardCurrentIndex > 0) {
+            prevBtn.style.opacity = '1';
+            prevBtn.style.pointerEvents = 'all';
+        } else {
+            prevBtn.style.opacity = '0';
+            prevBtn.style.pointerEvents = 'none';
+        }
+
+        const nextBtn = document.getElementById('wizard-next-btn');
+        if (wizardCurrentIndex === activeQuestions.length - 1) {
+            nextBtn.innerHTML = `Synthesize Plan <i data-lucide="zap" style="width: 16px; height: 16px;"></i>`;
+        } else {
+            nextBtn.innerHTML = `Next <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>`;
+        }
+        lucide.createIcons();
+    }
+
+    function prevWizardQuestion() {
+        if (wizardCurrentIndex > 0) {
+            activeQuestions[wizardCurrentIndex].answer_text = document.getElementById('wizard-answer').value;
+            wizardCurrentIndex--;
+            showWizardQuestion();
+        }
+    }
+
+    async function nextWizardQuestion() {
+        const ansVal = document.getElementById('wizard-answer').value.trim();
+        if (!ansVal) {
+            alert("Please write down an answer.");
+            return;
+        }
+
+        activeQuestions[wizardCurrentIndex].answer_text = ansVal;
+
+        if (wizardCurrentIndex < activeQuestions.length - 1) {
+            wizardCurrentIndex++;
+            showWizardQuestion();
+        } else {
+            document.getElementById('wizard-state').style.display = 'none';
+            showLoader("Generating Study Roadmap...", "Gemini is building your customized lessons schedule...");
+
+            const answersPayload = activeQuestions.map(q => ({
+                id: q.id,
+                answer: q.answer_text
+            }));
+
+            const res = await apiRequest(`goals/${activeGoal.id}/questions/`, 'POST', { answers: answersPayload });
+            if (res) {
+                loadRoadmap(activeGoal);
+            } else {
+                startWizard();
+            }
+        }
+    }
+
+    function showLoader(headline, body) {
+        document.getElementById('loader-state').style.display = 'flex';
+        document.getElementById('loader-headline').textContent = headline;
+        document.getElementById('loader-body').textContent = body;
+    }
+
+    // Active Goal Selection
+    async function selectGoal(goal) {
+        activeGoal = goal;
+        loadGoalsList();
+
+        document.getElementById('welcome-state').style.display = 'none';
+        document.getElementById('wizard-state').style.display = 'none';
+
+        if (goal.questions_answered) {
+            loadRoadmap(goal);
+        } else {
+            showLoader("Resuming Interview...", "Fetching outstanding questions...");
+            const questions = await apiRequest(`goals/${goal.id}/questions/`);
+            if (questions) {
+                activeQuestions = questions;
+                wizardCurrentIndex = 0;
+                for (let i = 0; i < questions.length; i++) {
+                    if (!questions[i].answer_text) {
+                        wizardCurrentIndex = i;
+                        break;
+                    }
+                }
+                startWizard();
+            }
+        }
+    }
+
+    // Load Roadmap View
+    async function loadRoadmap(goal) {
+        document.getElementById('loader-state').style.display = 'flex';
+        showLoader("Loading Roadmap...", "Mapping calendar tasks.");
+
+        const tasks = await apiRequest(`goals/${goal.id}/tasks/`);
+        if (tasks) {
+            activeTasks = tasks;
+            document.getElementById('loader-state').style.display = 'none';
+            document.getElementById('roadmap-state').style.display = 'block';
+
+            document.getElementById('active-goal-title').textContent = goal.title;
+
+            // Set the Goal Notes href
+            document.getElementById('goal-notes-btn').href = `/goals/${goal.id}/notes/`;
+
+            const badgeLabel = !goal.is_ai ? 'Manual Plan' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'Weekends Track' : 'Daily Track');
+            const badgeClass = !goal.is_ai ? 'manual' : (goal.schedule_type === 'WEEKENDS_ONLY' ? 'weekend' : 'all');
+            document.getElementById('active-goal-badges').innerHTML = `<span class="badge ${badgeClass}">${badgeLabel}</span>`;
+
+            renderTimeline();
+        }
+    }
+
+    function renderTimeline() {
+        const container = document.getElementById('active-timeline');
+        container.innerHTML = '';
+
+        activeTasks.forEach(task => {
+            const isCompleted = task.is_completed;
+            const completedStr = isCompleted ? 'completed' : '';
+
+            // Check if weekend
+            let isWeekend = false;
+            let dateStr = "No Date";
+            if (task.scheduled_date) {
+                const d = new Date(task.scheduled_date);
+                const day = d.getDay();
+                if (day === 0 || day === 6) {
+                    isWeekend = true;
+                }
+                dateStr = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+            if (task.is_user_added) {
+                dateStr += " <span style='font-weight: 500; font-size: 0.7rem; text-transform: none;'>(added manually)</span>";
+            }
+            const weekendStr = isWeekend ? 'weekend-item' : '';
+            const userAddedStr = task.is_user_added ? 'user-added' : '';
+
+            const el = document.createElement('div');
+            el.className = `timeline-item ${completedStr} ${weekendStr} ${userAddedStr}`;
+
+            el.innerHTML = `
+                <div class="timeline-marker">
+                    ${isCompleted ? '<i data-lucide="check" style="width: 12px; height: 12px; color: white;"></i>' : ''}
+                </div>
+                <div class="timeline-content" style="display: flex; flex-direction: column; align-items: stretch; gap: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div class="timeline-meta" style="margin-bottom: 0;">${dateStr}</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="glass-button" onclick="openEditTaskDrawer('${task.id}')" title="View Details" style="padding: 6px 10px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <button class="glass-button" onclick="openTaskDetails('${task.id}')" title="Log Progress" style="padding: 6px 10px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <button class="glass-button ${isCompleted ? '' : 'primary'}" onclick="toggleTaskCompletion('${task.id}')" style="min-width: 90px; height: 32px; padding: 0 12px; justify-content: center; font-size: 0.85rem; display: flex; align-items: center;">
+                                ${isCompleted ? 'Undo' : 'Complete'}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="timeline-text" style="width: 100%;">
+                        <div class="timeline-title">${task.title}</div>
+                        <div class="timeline-desc">${formatTaskDescription(task.description)}</div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(el);
+        });
+
+        lucide.createIcons();
+    }
+
+    // Toggle Task
+    async function toggleTaskCompletion(taskId) {
+        const res = await apiRequest(`tasks/${taskId}/complete/`, 'POST');
+        if (res) {
+            // Update local state
+            const t = activeTasks.find(x => x.id === taskId);
+            if (t) {
+                t.is_completed = res.is_completed;
+                t.completed_at = res.completed_at;
+            }
+            renderTimeline();
+
+            // Update streak
+            document.getElementById('streak-current').textContent = res.current_streak;
+            document.getElementById('streak-longest').textContent = `Personal Best: ${res.longest_streak} days`;
+        }
+    }
+
+    async function deleteTask(taskId) {
+        if (!confirm("Are you sure you want to delete this task?")) return;
+        const res = await apiRequest(`tasks/${taskId}/`, 'DELETE');
+        if (res) {
+            showToast('Task deleted successfully', 'success');
+            loadRoadmap(activeGoal);
+        }
+    }
+
+    // Drawer Logic (Progress Logs)
+    let currentTaskForDrawer = null;
+
+    async function openTaskDetails(taskId) {
+        const task = activeTasks.find(x => x.id === taskId);
+        if (!task) return;
+        currentTaskForDrawer = task;
+
+        document.getElementById('drawer-task-title').textContent = task.title;
+        document.getElementById('drawer-task-desc').innerHTML = formatTaskDescription(task.description);
+        document.getElementById('log-task-id').value = task.id;
+
+        document.getElementById('drawer-overlay').classList.add('open');
+        document.getElementById('task-drawer').classList.add('open');
+
+        // Load history logs
+        document.getElementById('drawer-history-list').innerHTML = '<div style="font-size: 0.85rem; color: var(--text-secondary);">Loading history...</div>';
+        const logs = await apiRequest(`tasks/${taskId}/logs/`);
+        if (logs) {
+            renderLogs(logs);
+        }
+    }
+
+    function closeDrawer() {
+        document.getElementById('drawer-overlay').classList.remove('open');
+        document.getElementById('task-drawer').classList.remove('open');
+        document.getElementById('create-task-drawer').classList.remove('open');
+        document.getElementById('edit-task-drawer').classList.remove('open');
+        document.getElementById('progress-log-form').reset();
+        document.getElementById('create-task-form').reset();
+        document.getElementById('edit-task-form').reset();
+
+        // Reset edit mode toggle state in edit drawer
+        document.getElementById('edit-drawer-title').textContent = 'Task Details';
+        document.getElementById('edit-task-title').disabled = true;
+        document.getElementById('edit-task-desc').disabled = true;
+        document.getElementById('edit-task-date').disabled = true;
+        document.getElementById('enable-edit-btn').style.display = 'inline-flex';
+        document.getElementById('save-task-btn').style.display = 'none';
+    }
+
+    function renderLogs(logs) {
+        const container = document.getElementById('drawer-history-list');
+        container.innerHTML = '';
+        if (logs.length === 0) {
+            container.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-secondary);">No updates logged yet.</div>';
+            return;
+        }
+
+        logs.forEach(log => {
+            const dateStr = new Date(log.log_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            let content = `
+                <div class="history-log-item">
+                    <div class="history-log-meta">${dateStr}</div>
+                    <div class="history-log-text"><strong>Learned:</strong> ${log.learned}</div>
+            `;
+            if (log.problems_faced) content += `<div class="history-log-text" style="color: var(--danger);"><strong>Blockers:</strong> ${log.problems_faced}</div>`;
+            if (log.additional_notes) content += `<div class="history-log-text"><strong>Notes:</strong> ${log.additional_notes}</div>`;
+            content += '</div>';
+            container.innerHTML += content;
+        });
+    }
+
+    async function handleProgressLogSubmit(e) {
+        e.preventDefault();
+        const taskId = document.getElementById('log-task-id').value;
+        const learned = document.getElementById('log-learned').value;
+        const problems = document.getElementById('log-problems').value;
+        const notes = document.getElementById('log-notes').value;
+
+        const payload = {
+            learned: learned,
+            problems_faced: problems,
+            additional_notes: notes
+        };
+
+        const res = await apiRequest(`tasks/${taskId}/logs/`, 'POST', payload);
+        if (res) {
+            document.getElementById('progress-log-form').reset();
+            // Refresh logs
+            const logs = await apiRequest(`tasks/${taskId}/logs/`);
+            if (logs) renderLogs(logs);
+        }
+    }
+
+    // Create Manual Task Drawer
+    function openCreateTaskDrawer() {
+        document.getElementById('drawer-overlay').classList.add('open');
+        document.getElementById('create-task-drawer').classList.add('open');
+    }
+
+    function closeCreateTaskDrawer() {
+        closeDrawer();
+    }
+
+    async function handleCreateTaskSubmit(e) {
+        e.preventDefault();
+        if (!activeGoal) return;
+
+        const title = document.getElementById('new-task-title').value;
+        const desc = document.getElementById('new-task-desc').value;
+        const dateStr = document.getElementById('new-task-date').value;
+
+        const payload = { title: title, description: desc };
+        if (dateStr) payload.scheduled_date = dateStr;
+
+        const res = await apiRequest(`goals/${activeGoal.id}/tasks/create/`, 'POST', payload);
+        if (res) {
+            closeCreateTaskDrawer();
+            loadRoadmap(activeGoal); // Refresh roadmap and sort
+        }
+    }
+
+    // Edit Task Drawer
+    function openEditTaskDrawer(taskId) {
+        const task = activeTasks.find(x => x.id === taskId);
+        if (!task) return;
+
+        document.getElementById('edit-task-id').value = task.id;
+        document.getElementById('edit-task-title').value = task.title;
+        document.getElementById('edit-task-desc').value = task.description;
+        document.getElementById('edit-task-date').value = task.scheduled_date || '';
+
+        // Reset to view mode
+        document.getElementById('edit-drawer-title').textContent = 'Task Details';
+        document.getElementById('edit-task-title').disabled = true;
+        document.getElementById('edit-task-desc').disabled = true;
+        document.getElementById('edit-task-date').disabled = true;
+        document.getElementById('enable-edit-btn').style.display = 'inline-flex';
+        document.getElementById('save-task-btn').style.display = 'none';
+
+        document.getElementById('drawer-overlay').classList.add('open');
+        document.getElementById('edit-task-drawer').classList.add('open');
+    }
+
+    function enableTaskEditing() {
+        document.getElementById('edit-drawer-title').textContent = 'Edit Task';
+        document.getElementById('edit-task-title').disabled = false;
+        document.getElementById('edit-task-desc').disabled = false;
+        document.getElementById('edit-task-date').disabled = false;
+        document.getElementById('enable-edit-btn').style.display = 'none';
+        document.getElementById('save-task-btn').style.display = 'inline-flex';
+        document.getElementById('edit-task-title').focus();
+    }
+
+    function closeEditTaskDrawer() {
+        closeDrawer();
+    }
+
+    async function handleEditTaskSubmit(e) {
+        e.preventDefault();
+        const taskId = document.getElementById('edit-task-id').value;
+        const title = document.getElementById('edit-task-title').value;
+        const desc = document.getElementById('edit-task-desc').value;
+        const dateStr = document.getElementById('edit-task-date').value;
+
+        const payload = { title: title, description: desc };
+        payload.scheduled_date = dateStr || null;
+
+        const res = await apiRequest(`tasks/${taskId}/`, 'PATCH', payload);
+        if (res) {
+            closeEditTaskDrawer();
+            // Re-fetch all tasks for active goal so they are re-sorted
+            loadRoadmap(activeGoal);
+            showToast('Task updated successfully', 'success');
+        }
+    }
+
+    function downloadGoalPDF() {
+        if (!activeGoal) return;
+        window.open(`/api/v1/goals/${activeGoal.id}/pdf/`, '_blank');
+    }
+
+    async function deleteActiveGoal() {
+        if (!activeGoal) return;
+        if (!confirm(`Are you sure you want to delete the entire learning track "${activeGoal.title}"? This cannot be undone.`)) return;
+
+        const res = await apiRequest(`goals/${activeGoal.id}/`, 'DELETE');
+        if (res) {
+            showToast('Learning track deleted successfully', 'success');
+            showCreateGoalForm();
+        }
+    }
+
+    async function generateQuizForGoal() {
+        if (!activeGoal) return;
+
+        document.getElementById('roadmap-state').style.display = 'none';
+        showLoader("Generating Quiz...", "Nebula is formulating a custom 10-question assessment based on your tasks...");
+
+        const data = await apiRequest(`goals/${activeGoal.id}/quiz/generate/`, 'POST');
+        if (data && data.id) {
+            window.location.href = `/goals/${activeGoal.id}/quiz/${data.id}/`;
+        } else {
+            document.getElementById('loader-state').style.display = 'none';
+            document.getElementById('roadmap-state').style.display = 'block';
+        }
+    }
+
+</script>
+{% endblock %}
